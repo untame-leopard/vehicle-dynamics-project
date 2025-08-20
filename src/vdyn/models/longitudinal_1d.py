@@ -89,3 +89,70 @@ def time_to_speed(T, V, v_target_ms):
     """Finds the time it takes to reach a target velocity."""
     idx = np.where(V >= v_target_ms)[0]
     return float(T[idx[0]]) if idx.size else np.nan
+
+
+# --- Small config helper (to serialise Vehicle later)
+def vehicle_to_dict(car: Vehicle) -> dict:
+    return {
+        "m": car.m, "power": car.power, "CdA": car.CdA, "rho": car.rho,
+        "Crr": car.Crr, "mu_drive": car.mu_drive, "mu_brake": car.mu_brake,
+        "ita_drive": car.ita_drive, "v_target": car.v_target
+    }
+
+# --- KPI helpers with light interpolation for precision
+def _t_to_reach_speed(T: np.ndarray, V: np.ndarray, v_target_ms: float) -> float:
+    idx = np.where(V >= v_target_ms)[0]
+    if idx.size == 0:
+        return float("nan")
+    i = int(idx[0])
+    if i == 0:
+        return float(T[0])
+    v0, v1 = V[i-1], V[i]
+    t0, t1 = T[i-1], T[i]
+    if v1 == v0:
+        return float(t1)
+    frac = (v_target_ms - v0) / (v1 - v0)
+    return float(t0 + frac * (t1 - t0))
+
+def kpi_0_to_100_kmh(T: np.ndarray, V: np.ndarray) -> float:
+    return _t_to_reach_speed(T, V, 27.7777777778)
+
+def kpi_0_to_200_kmh(T: np.ndarray, V: np.ndarray) -> float:
+    return _t_to_reach_speed(T, V, 55.5555555556)
+
+def kpi_top_speed_ms(V: np.ndarray) -> float:
+    return float(np.max(V))
+
+def kpi_top_speed_kmh(V: np.ndarray) -> float:
+    return float(np.max(V) * 3.6)
+
+def kpi_100_to_0_brake_distance(T: np.ndarray, V: np.ndarray, S: np.ndarray) -> float:
+    """Distance from first time crossing down through 100 km/h on the *braking* side until stop."""
+    v100 = 27.7777777778
+    i_peak = int(np.argmax(V))
+    if i_peak >= len(V) - 2:
+        return float("nan")
+    Vb = V[i_peak:]      # braking segment
+    Sb = S[i_peak:]
+    # find first index where we cross from > v100 to <= v100
+    cross = np.where((Vb[:-1] > v100) & (Vb[1:] <= v100))[0]
+    if cross.size == 0:
+        return float("nan")
+    j = int(cross[0] + 1)  # index in Vb/Sb
+    v0, v1 = Vb[j-1], Vb[j]
+    s0, s1 = Sb[j-1], Sb[j]
+    if v1 == v0:
+        s_start = s1
+    else:
+        frac = (v100 - v0) / (v1 - v0)
+        s_start = s0 + frac * (s1 - s0)
+    s_end = float(S[-1])   # final distance when v reaches 0
+    return float(s_end - s_start)
+
+def compute_kpis(T: np.ndarray, V: np.ndarray, S: np.ndarray) -> dict:
+    return {
+        "t_0_100_s": kpi_0_to_100_kmh(T, V),
+        "t_0_200_s": kpi_0_to_200_kmh(T, V),
+        "vmax_kmh": kpi_top_speed_kmh(V),
+        "brake_100_0_m": kpi_100_to_0_brake_distance(T, V, S),
+    }
