@@ -6,7 +6,7 @@ class Vehicle:
     def __init__(self, m: float = 800.0, power: float = 300e3, CdA: float = 0.90, 
                  rho: float = 1.225, Crr: float = 0.015, mu_drive: float = 1.2, 
                  mu_brake: float = 1.2, ita_drive: float = 0.90, 
-                 v_target: float = 200/3.6):
+                 v_target: float = 200/3.6, ClA: float = 0.0):
         """
         Initialises the Vehicle class with its physical properties.
 
@@ -30,6 +30,7 @@ class Vehicle:
         self.mu_brake = mu_brake
         self.ita_drive = ita_drive
         self.v_target = v_target
+        self.ClA = ClA
 
 def accel_brake_run(car: Vehicle, dt: float = 0.01):
     """
@@ -50,7 +51,8 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
         # Calculate forces acting on the vehicle
         F_drag = 0.5 * car.rho * car.CdA * v*v
         F_rr   = car.Crr * car.m * g
-        F_trac = car.mu_drive * car.m * g
+        N = car.m * g + 0.5 * car.rho * car.ClA * v*v  # Normal force with downforce
+        F_trac = car.mu_drive * N
         F_power= (car.ita_drive * car.power) / max(v, 1e-6)  # Avoid division by zero at v=0
         F_drive= min(F_trac, F_power)
 
@@ -96,7 +98,7 @@ def vehicle_to_dict(car: Vehicle) -> dict:
     return {
         "m": car.m, "power": car.power, "CdA": car.CdA, "rho": car.rho,
         "Crr": car.Crr, "mu_drive": car.mu_drive, "mu_brake": car.mu_brake,
-        "ita_drive": car.ita_drive, "v_target": car.v_target
+        "ita_drive": car.ita_drive, "v_target": car.v_target, "ClA": car.ClA
     }
 
 # --- KPI helpers with light interpolation for precision
