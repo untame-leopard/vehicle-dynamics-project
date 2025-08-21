@@ -58,10 +58,13 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
 
         # Calculate acceleration and update state variables
         a = (F_drive - F_drag - F_rr) / car.m
-        if a < 0: a = 0.0  # Don't slow down in the accel phase
+        if a < 0: 
+            a = 0.0
+            break
 
+        v_prev = v
         v += a * dt
-        s += v * dt
+        s += v_prev * dt + 0.5 * a * dt * dt
         t += dt
         T.append(t); V.append(v); S.append(s); A.append(a)
         if t > 120: break  # Safety break
@@ -71,12 +74,13 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
         # Calculate forces for braking
         F_drag = 0.5 * car.rho * car.CdA * v*v
         F_rr   = car.Crr * car.m * g
-        F_brake= car.mu_brake * car.m * g
+        N = car.m * g + 0.5 * car.rho * car.ClA * v*v
+        F_brake= car.mu_brake * N
         a = -(F_brake + F_drag + F_rr) / car.m
 
         # Update state variables
         v = max(0.0, v + a * dt)
-        s += v * dt
+        s += v_prev * dt + 0.5 * a * dt * dt
         t += dt
         T.append(t); V.append(v); S.append(s); A.append(a)
         if t > 240: break  # Safety break

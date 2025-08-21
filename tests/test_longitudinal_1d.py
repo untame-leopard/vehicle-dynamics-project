@@ -30,3 +30,14 @@ def test_more_brake_mu_shorter_100_to_0_distance():
     assert np.isfinite(d1) and np.isfinite(d2)
     assert d2 < d1  # higher grip -> shorter distance
 
+def test_more_downforce_shorter_100_to_0_distance():
+    # Hold CdA constant to isolate CL effect
+    base = dict(CdA=0.90)
+    car_no_df = Vehicle(ClA=0.0, **base)
+    car_hi_df = Vehicle(ClA=2.5, **base)  # strong downforce (F1-ish scale)
+    T1, V1, S1, _ = accel_brake_run(car_no_df, dt=0.01)
+    T2, V2, S2, _ = accel_brake_run(car_hi_df, dt=0.01)
+    from src.vdyn.models.longitudinal_1d import kpi_100_to_0_brake_distance
+    d1 = kpi_100_to_0_brake_distance(T1, V1, S1)
+    d2 = kpi_100_to_0_brake_distance(T2, V2, S2)
+    assert d2 < d1
