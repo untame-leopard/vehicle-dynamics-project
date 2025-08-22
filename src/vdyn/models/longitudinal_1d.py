@@ -6,7 +6,7 @@ class Vehicle:
     def __init__(self, m: float = 800.0, power: float = 300e3, CdA: float = 0.90, 
                  rho: float = 1.225, Crr: float = 0.015, mu_drive: float = 1.2, 
                  mu_brake: float = 1.2, ita_drive: float = 0.90, 
-                 v_target: float = 200/3.6, ClA: float = 0.0):
+                 v_target: float = 200/3.6, ClA: float = 0.0, dCdA_per_ClA: float = 0.0):
         """
         Initialises the Vehicle class with its physical properties.
 
@@ -20,6 +20,8 @@ class Vehicle:
             mu_brake: Tyre-road friction coefficient for braking
             ita_drive: Drivetrain efficiency
             v_target: Target speed in m/s
+            ClA: Lift area in m^2 (negative for downforce)
+            dCdA_per_ClA: Change in drag area per unit lift area (for aerodynamic coupling)
         """
         self.m = m
         self.power = power
@@ -31,6 +33,7 @@ class Vehicle:
         self.ita_drive = ita_drive
         self.v_target = v_target
         self.ClA = ClA
+        self.dCdA_per_ClA = dCdA_per_ClA
 
 def accel_brake_run(car: Vehicle, dt: float = 0.01):
     """
@@ -49,7 +52,8 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
     # --- Acceleration (0 -> v_target)
     while v < car.v_target:
         # Calculate forces acting on the vehicle
-        F_drag = 0.5 * car.rho * car.CdA * v*v
+        CdA_eff = car.CdA + car.dCdA_per_ClA * car.ClA
+        F_drag = 0.5 * car.rho * CdA_eff * v*v
         F_rr   = car.Crr * car.m * g
         N = car.m * g + 0.5 * car.rho * car.ClA * v*v  # Normal force with downforce
         F_trac = car.mu_drive * N
@@ -72,7 +76,8 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
     # --- Braking (v_target -> 0)
     while v > 0:
         # Calculate forces for braking
-        F_drag = 0.5 * car.rho * car.CdA * v*v
+        CdA_eff = car.CdA + car.dCdA_per_ClA * car.ClA
+        F_drag = 0.5 * car.rho * CdA_eff * v*v
         F_rr   = car.Crr * car.m * g
         N = car.m * g + 0.5 * car.rho * car.ClA * v*v
         F_brake= car.mu_brake * N
@@ -102,7 +107,7 @@ def vehicle_to_dict(car: Vehicle) -> dict:
     return {
         "m": car.m, "power": car.power, "CdA": car.CdA, "rho": car.rho,
         "Crr": car.Crr, "mu_drive": car.mu_drive, "mu_brake": car.mu_brake,
-        "ita_drive": car.ita_drive, "v_target": car.v_target, "ClA": car.ClA
+        "ita_drive": car.ita_drive, "v_target": car.v_target, "ClA": car.ClA, "dCdA_per_ClA": car.dCdA_per_ClA,
     }
 
 # --- KPI helpers with light interpolation for precision
