@@ -25,3 +25,6 @@ Thumbs.db
 docs/img/*.png
 *.csv
 *.dat
+
+# Ignore generated CSVs
+docs/*.csv
