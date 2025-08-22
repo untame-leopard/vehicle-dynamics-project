@@ -1,3 +1,27 @@
-# Byte-compiled / optimized / DLL files
+# Python junk
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Testing cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Project outputs
+docs/img/*.png
+*.csv
+*.dat

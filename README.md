@@ -1,60 +1,105 @@
-Vehicle Dynamics Project: Quarter-Car Model
+# Vehicle Dynamics Project: Longitudinal 0–200–0 & Aero Effects
 
-Project Overview
+This project explores **vehicle longitudinal dynamics** with a focus on acceleration, braking, and aerodynamics.
+The end goal is to build up towards a **quasi-steady-state (QSS) lap time simulator**, connecting physics, code quality, and engineering workflow.
 
-This project is an exploration into vehicle dynamics using a simple quarter-car model. The goal is to simulate how a vehicle's suspension system responds to different road inputs, such as bumps. This model helps to understand the fundamental physics of suspension design by focusing on just one corner of the vehicle.
+---
 
-The simulation uses Python to solve the second-order differential equations that govern the motion of the sprung and unsprung masses.
+## Project Overview
 
-Model Description
-The quarter-car model simplifies a vehicle into a system with two masses and two springs.
+* Baseline 0–200–0 simulation with KPIs (0–100, 0–200, top speed, 100–0 braking distance).
+* Aerodynamic downforce (Cl·A) added, showing the trade-off between drag and braking performance.
+* Roadmap includes lap-time simulation, interactive visualisation, and MATLAB parity.
 
-Sprung Mass (
-boldsymbolm_s): Represents the mass of the car body, passenger, and cargo.
+The repo is structured with a `src/` package (`vdyn`) containing reusable models, and notebooks for results/plots.
 
-Unsprung Mass (
-boldsymbolm_u): Represents the mass of the wheel, tire, and suspension components.
+---
 
-Suspension Spring (
-boldsymbolk_s): The main spring that connects the sprung and unsprung masses.
+## Installation
 
-Damper (
-boldsymbolc_s): The shock absorber that dissipates energy and controls the suspension's motion.
+Clone the repository and install in editable mode:
 
-Tire Stiffness (
-boldsymbolk_t): The stiffness of the tire itself, modeled as a second spring.
-
-Getting Started
-To run this simulation, you'll first need to set up the Python environment and install the required libraries.
-
-Clone the repository:
-
+```bash
 git clone https://github.com/untame-leopard/vehicle-dynamics-project.git
-
-Then:
-
 cd vehicle-dynamics-project
+pip install -e .
+```
 
-Activate the virtual environment:
+This makes the package importable from anywhere:
 
-source .venv/bin/activate
+```python
+from vdyn.models.longitudinal import Vehicle, accel_brake_run, compute_kpis
+```
 
-Install dependencies: Use the requirements.txt file to install the necessary libraries.
+---
 
-pip install -r requirements.txt
+## Usage
 
-Run the simulation: Execute the main Python script.
+### Baseline 0–200–0
 
-python3 src/main.py
+Run the notebook:
 
-Dependencies
-This project relies on the following Python libraries:
+```bash
+jupyter notebook notebooks/longitudinal_1d.ipynb
+```
 
-numpy: For efficient numerical computations.
+It produces speed, distance, and acceleration plots, along with key performance indicators.
 
-scipy: For solving the differential equations of the model.
 
-matplotlib: For plotting and visualizing the simulation results.
+### Aero Effects
 
-Expected Output
-When you run the script, a plot will be generated showing the displacement of the sprung and unsprung masses over time after the vehicle hits a bump. This visualization helps in understanding the dynamic behavior of the suspension system.
+The aero comparison notebook (`aero_effects.ipynb`) shows how downforce shortens braking distance but can slow top speed. (planned)
+
+
+---
+
+## Repo Structure
+
+```
+src/vdyn/          # Vehicle dynamics code
+  models/          # Longitudinal, aero, etc.
+  tracks/          # Track curvature data (planned)
+
+notebooks/         # Jupyter notebooks with results
+tests/             # Pytest unit tests
+```
+
+---
+
+## Tests
+
+Run the physics sanity checks with:
+
+```bash
+pytest -q
+```
+
+Tests cover:
+
+* Speed monotonicity in 0–200–0
+* Drag ↓ ⇒ higher top speed
+* Brake μ ↑ ⇒ shorter 100–0 distance
+* Downforce ↑ ⇒ shorter 100–0 distance
+
+---
+
+## Dependencies
+
+* numpy
+* matplotlib
+* pandas (optional, for tables in notebooks)
+* pytest (for testing)
+
+---
+
+## Roadmap
+
+- [x] Longitudinal 0–200–0 baseline (KPIs, plots, tests)
+- [x] Aerodynamic downforce (CL·A)
+- [ ] Track ingestion (CSV of s, κ; toy track generator)
+- [ ] QSS lap-time simulation (forward/backward pass, friction circle)
+- [ ] Validation tests (lap time sensitivity to aero & μ)
+- [ ] Interactive visualisation (Streamlit/Jupyter widgets + telemetry export)
+- [ ] MATLAB parity (core longitudinal + QSS)
+- [ ] CI integration, profiling, documentation polish
+---
