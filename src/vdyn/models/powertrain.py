@@ -5,8 +5,8 @@ TWOPI = 2.0 * np.pi
 
 @dataclass
 class TorqueCurve:
-    rpm: np.ndarray        # e.g. [1000, 2000, ..., 14000]
-    torque_nm: np.ndarray  # same length
+    rpm: np.ndarray       
+    torque_nm: np.ndarray  
 
     def tq(self, rpm: float) -> float:
         # clamp + linear interp
@@ -15,9 +15,9 @@ class TorqueCurve:
 
 @dataclass
 class Gearbox:
-    ratios: list[float]           # e.g. [3.10, 2.20, 1.70, 1.35, 1.12, 0.95]
-    final_drive: float            # e.g. 3.5
-    wheel_radius_m: float         # e.g. 0.33
+    ratios: list[float]       
+    final_drive: float            
+    wheel_radius_m: float         
     driveline_eff: float = 0.92
     shift_rpm: float = 12000.0
     launch_gear: int = 1
@@ -49,3 +49,8 @@ class Powertrain:
         tq  = self.curve.tq(rpm)
         F   = self.box.drive_force_from_engine(tq, gear)
         return F, rpm
+    
+def default_highrev_curve() -> TorqueCurve:
+    rpm = np.array([1000, 4000, 8000, 11000, 13000, 14000], dtype=float)
+    tq  = np.array([120,   220,   260,    250,    230,    210], dtype=float)
+    return TorqueCurve(rpm, tq)
