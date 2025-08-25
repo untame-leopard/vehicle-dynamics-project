@@ -1,5 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
+from vdyn.models.powertrain import Powertrain
 g = 9.81
 
 @dataclass
@@ -19,7 +20,7 @@ class Vehicle:
     ClA: float = 0.0          # Lift area in m^2 (negative for downforce)
     dCdA_per_ClA: float = 0.0 # Change in drag area per unit lift area (for aerodynamic coupling)
 
-def accel_brake_run(car: Vehicle, dt: float = 0.01):
+def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | None = None):
     """
     Simulates vehicle acceleration to a target speed, followed by braking to a stop.
 
@@ -31,17 +32,29 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
         tuple: A tuple of numpy arrays for time, velocity, distance, and acceleration.
     """
     v, s, t = 0.0, 0.0, 0.0
-    T, V, S, A = [], [], [], []
+    T, V, S, A, G, R = [], [], [], [], [], []
 
     # --- Acceleration (0 -> v_target)
+
+    gear = powertrain.box.launch_gear if powertrain else 0
     while v < car.v_target:
         # Calculate forces acting on the vehicle
         CdA_eff = car.CdA + car.dCdA_per_ClA * car.ClA
         F_drag = 0.5 * car.rho * CdA_eff * v*v
         F_rr   = car.Crr * car.m * g
         N = car.m * g + 0.5 * car.rho * car.ClA * v*v  # Normal force with downforce
+        
+        if powertrain:
+            F_power, rpm = powertrain.available_drive_force(v, gear)
+            # simple upshift rule
+            if rpm > powertrain.box.shift_rpm and gear < len(powertrain.box.ratios):
+                gear += 1
+                F_power, rpm = powertrain.available_drive_force(v, gear)
+        else:
+            rpm = 0.0
+            F_power = (car.ita_drive * car.power) / max(v, 1e-6)
+
         F_trac = car.mu_drive * N
-        F_power= (car.ita_drive * car.power) / max(v, 1e-6)  # Avoid division by zero at v=0
         F_drive= min(F_trac, F_power)
 
         # Calculate acceleration and update state variables
@@ -54,7 +67,7 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
         v += a * dt
         s += v_prev * dt + 0.5 * a * dt * dt
         t += dt
-        T.append(t); V.append(v); S.append(s); A.append(a)
+        T.append(t); V.append(v); S.append(s); A.append(a); G.append(gear); R.append(rpm)
         if t > 120: break  # Safety break
 
     # --- Braking (v_target -> 0)
@@ -71,10 +84,10 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01):
         v = max(0.0, v + a * dt)
         s += v_prev * dt + 0.5 * a * dt * dt
         t += dt
-        T.append(t); V.append(v); S.append(s); A.append(a)
+        T.append(t); V.append(v); S.append(s); A.append(a); G.append(gear); R.append(rpm)
         if t > 240: break  # Safety break
 
-    return np.array(T), np.array(V), np.array(S), np.array(A)
+    return np.array(T), np.array(V), np.array(S), np.array(A), np.array(G), np.array(R)
 
 def to_kmh(v_ms: np.ndarray) -> np.ndarray:
     """Converts velocity from meters per second to kilometers per hour."""
