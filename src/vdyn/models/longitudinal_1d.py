@@ -1,39 +1,23 @@
 import numpy as np
-
+from dataclasses import dataclass
 g = 9.81
 
+@dataclass
 class Vehicle:
-    def __init__(self, m: float = 800.0, power: float = 300e3, CdA: float = 0.90, 
-                 rho: float = 1.225, Crr: float = 0.015, mu_drive: float = 1.2, 
-                 mu_brake: float = 1.2, ita_drive: float = 0.90, 
-                 v_target: float = 200/3.6, ClA: float = 0.0, dCdA_per_ClA: float = 0.0):
-        """
-        Initialises the Vehicle class with its physical properties.
-
-        Args:
-            m: Mass of the vehicle in kg
-            power: Engine power in W
-            CdA: Drag area in m^2
-            rho: Air density in kg/m^3
-            Crr: Rolling resistance coefficient
-            mu_drive: Tyre-road friction coefficient for acceleration
-            mu_brake: Tyre-road friction coefficient for braking
-            ita_drive: Drivetrain efficiency
-            v_target: Target speed in m/s
-            ClA: Lift area in m^2 (negative for downforce)
-            dCdA_per_ClA: Change in drag area per unit lift area (for aerodynamic coupling)
-        """
-        self.m = m
-        self.power = power
-        self.CdA = CdA
-        self.rho = rho
-        self.Crr = Crr
-        self.mu_drive = mu_drive
-        self.mu_brake = mu_brake
-        self.ita_drive = ita_drive
-        self.v_target = v_target
-        self.ClA = ClA
-        self.dCdA_per_ClA = dCdA_per_ClA
+    """
+    Initialises the Vehicle class with its physical properties.
+    """
+    m: float = 800.0          # Mass of the vehicle in kg
+    power: float = 300e3      # Engine power in W
+    CdA: float = 0.90         # Drag area in m^2
+    rho: float = 1.225        # Air density in kg/m^3
+    Crr: float = 0.015        # Rolling resistance coefficient
+    mu_drive: float = 1.2     # Tyre-road friction coefficient for acceleration
+    mu_brake: float = 1.2     # Tyre-road friction coefficient for braking
+    ita_drive: float = 0.90   # Drivetrain efficiency
+    v_target: float = 200/3.6 # Target speed in m/s
+    ClA: float = 0.0          # Lift area in m^2 (negative for downforce)
+    dCdA_per_ClA: float = 0.0 # Change in drag area per unit lift area (for aerodynamic coupling)
 
 def accel_brake_run(car: Vehicle, dt: float = 0.01):
     """
