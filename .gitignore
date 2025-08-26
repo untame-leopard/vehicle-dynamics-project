@@ -22,7 +22,8 @@ htmlcov/
 Thumbs.db
 
 # Project outputs
-docs/img/*.png
+*.png
+!docs/img/*.png
 *.csv
 *.dat
 
