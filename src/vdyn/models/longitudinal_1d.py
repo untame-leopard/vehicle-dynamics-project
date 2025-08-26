@@ -45,17 +45,19 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
         N = car.m * g + 0.5 * car.rho * car.ClA * v*v  # Normal force with downforce
         
         if powertrain:
-            F_power, rpm = powertrain.available_drive_force(v, gear)
-            # simple upshift rule
+            F_eng, rpm = powertrain.available_drive_force(v, gear)
             if rpm > powertrain.box.shift_rpm and gear < len(powertrain.box.ratios):
                 gear += 1
-                F_power, rpm = powertrain.available_drive_force(v, gear)
+                F_eng, rpm = powertrain.available_drive_force(v, gear)
+            elif rpm < powertrain.box.downshift_rpm and gear > 1:
+                gear -= 1
+                F_eng, rpm = powertrain.available_drive_force(v, gear)
         else:
             rpm = 0.0
-            F_power = (car.ita_drive * car.power) / max(v, 1e-6)
+            F_eng = (car.ita_drive * car.power) / max(v, 1e-6)
 
         F_trac = car.mu_drive * N
-        F_drive= min(F_trac, F_power)
+        F_drive= min(F_trac, F_eng)
 
         # Calculate acceleration and update state variables
         a = (F_drive - F_drag - F_rr) / car.m
@@ -78,12 +80,27 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
         F_rr   = car.Crr * car.m * g
         N = car.m * g + 0.5 * car.rho * car.ClA * v*v
         F_brake= car.mu_brake * N
+
         a = -(F_brake + F_drag + F_rr) / car.m
 
         # Update state variables
+        v_prev = v
         v = max(0.0, v + a * dt)
         s += v_prev * dt + 0.5 * a * dt * dt
         t += dt
+
+        if powertrain:
+        # visual downshift-only trace (no physics change)
+            rpm = powertrain.box.engine_rpm(v, gear)
+            if gear > 1:
+                rpm_down = powertrain.box.engine_rpm(v, gear-1)
+                if (rpm < powertrain.box.downshift_rpm) and (rpm_down <= powertrain.box.shift_rpm * 1.02):
+                    gear -= 1
+                    rpm = rpm_down
+        else:
+            gear = 0
+            rpm  = 0.0
+
         T.append(t); V.append(v); S.append(s); A.append(a); G.append(gear); R.append(rpm)
         if t > 240: break  # Safety break
 

@@ -20,6 +20,7 @@ class Gearbox:
     wheel_radius_m: float         
     driveline_eff: float = 0.92
     shift_rpm: float = 12000.0
+    downshift_rpm: float = 3000.0
     launch_gear: int = 1
 
     def wheel_speed_rps(self, v_ms: float) -> float:
