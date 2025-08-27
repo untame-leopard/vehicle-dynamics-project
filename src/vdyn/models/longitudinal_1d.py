@@ -118,6 +118,7 @@ def time_to_speed(T, V, v_target_ms):
 
 # --- Small config helper (to serialise Vehicle later)
 def vehicle_to_dict(car: Vehicle) -> dict:
+    "Serialises a Vehicle object into a dictionary of its physical properties."
     return {
         "m": car.m, "power": car.power, "CdA": car.CdA, "rho": car.rho,
         "Crr": car.Crr, "mu_drive": car.mu_drive, "mu_brake": car.mu_brake,
@@ -126,6 +127,7 @@ def vehicle_to_dict(car: Vehicle) -> dict:
 
 # --- KPI helpers with light interpolation for precision
 def _t_to_reach_speed(T: np.ndarray, V: np.ndarray, v_target_ms: float) -> float:
+    "Returns the time to reach a target speed with linear interpolation."
     idx = np.where(V >= v_target_ms)[0]
     if idx.size == 0:
         return float("nan")
@@ -140,15 +142,19 @@ def _t_to_reach_speed(T: np.ndarray, V: np.ndarray, v_target_ms: float) -> float
     return float(t0 + frac * (t1 - t0))
 
 def kpi_0_to_100_kmh(T: np.ndarray, V: np.ndarray) -> float:
+    "Returns the time to accelerate from 0 to 100 km/h (27.78 m/s)."
     return _t_to_reach_speed(T, V, 27.7777777778)
 
 def kpi_0_to_200_kmh(T: np.ndarray, V: np.ndarray) -> float:
+    "Returns the time to accelerate from 0 to 200 km/h (55.56 m/s)"
     return _t_to_reach_speed(T, V, 55.5555555556)
 
 def kpi_top_speed_ms(V: np.ndarray) -> float:
+    "Returns the top speed in m/s achieved during the simulation."
     return float(np.max(V))
 
 def kpi_top_speed_kmh(V: np.ndarray) -> float:
+    "Returns the top speed in km/h achieved during the simulation."
     return float(np.max(V) * 3.6)
 
 def kpi_100_to_0_brake_distance(T: np.ndarray, V: np.ndarray, S: np.ndarray) -> float:
@@ -175,6 +181,17 @@ def kpi_100_to_0_brake_distance(T: np.ndarray, V: np.ndarray, S: np.ndarray) -> 
     return float(s_end - s_start)
 
 def compute_kpis(T: np.ndarray, V: np.ndarray, S: np.ndarray) -> dict:
+    """
+    Computes key performance indicators (KPIs) from simulation data.
+
+    Args:
+        T: Array of time values (seconds).
+        V: Array of velocity values (m/s).
+        S: Array of distance values (meters).
+
+    Returns:
+        dict: Dictionary containing acceleration times, top speed, and braking distance.
+    """
     return {
         "t_0_100_s": kpi_0_to_100_kmh(T, V),
         "t_0_200_s": kpi_0_to_200_kmh(T, V),
