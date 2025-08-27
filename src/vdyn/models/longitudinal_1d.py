@@ -79,16 +79,9 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
         F_drag = 0.5 * car.rho * CdA_eff * v*v
         F_rr   = car.Crr * car.m * g
         N = car.m * g + 0.5 * car.rho * car.ClA * v*v
-        F_brake= car.mu_brake * N
+        mUN = car.mu_brake * N
 
-        a = -(F_brake + F_drag + F_rr) / car.m
-
-        # Update state variables
-        v_prev = v
-        v = max(0.0, v + a * dt)
-        s += v_prev * dt + 0.5 * a * dt * dt
-        t += dt
-
+        F_eb = 0.0
         if powertrain:
         # visual downshift-only trace (no physics change)
             rpm = powertrain.box.engine_rpm(v, gear)
@@ -97,9 +90,16 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
                 if (rpm < powertrain.box.downshift_rpm) and (rpm_down <= powertrain.box.shift_rpm * 1.02):
                     gear -= 1
                     rpm = rpm_down
-        else:
-            gear = 0
-            rpm  = 0.0
+            F_eb, rpm, T_eb = powertrain.engine_brake_force(v, gear)
+        F_tire = min(mUN, F_eb + mUN)
+
+        a = -(F_tire + F_drag + F_rr) / car.m
+        
+        # Update state variables
+        v_prev = v
+        v = max(0.0, v + a * dt)
+        s += v_prev * dt + 0.5 * a * dt * dt
+        t += dt
 
         T.append(t); V.append(v); S.append(s); A.append(a); G.append(gear); R.append(rpm)
         if t > 240: break  # Safety break

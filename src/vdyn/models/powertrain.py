@@ -45,11 +45,22 @@ class Powertrain:
     curve: TorqueCurve
     box: Gearbox
 
+    engine_brake_coeff_nm_per_rpm: float = 0.03
+    engine_brake_max_torque_nm: float = 400.0
+
     def available_drive_force(self, v_ms: float, gear: int) -> tuple[float, float]:
         rpm = self.box.engine_rpm(v_ms, gear)
         tq  = self.curve.tq(rpm)
         F   = self.box.drive_force_from_engine(tq, gear)
         return F, rpm
+    
+    def engine_brake_force(self, v_ms: float, gear: int) -> tuple[float, float, float]:
+        if gear < 1:
+            return 0.0, 0.0, 0.0
+        rpm = self.box.engine_rpm(v_ms, gear)
+        T_eb = min(self.engine_brake_coeff_nm_per_rpm * rpm, self.engine_brake_max_torque_nm)
+        F_eb = self.box.drive_force_from_engine(T_eb, gear)
+        return F_eb, rpm, T_eb
     
 def default_highrev_curve() -> TorqueCurve:
     rpm = np.array([1000, 4000, 8000, 11000, 13000, 14000], dtype=float)

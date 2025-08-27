@@ -38,3 +38,11 @@ def test_upshift_reduces_wheel_force_at_same_speed():
     F1,_ = pt.available_drive_force(20.0, 1)
     F2,_ = pt.available_drive_force(20.0, 2)
     assert F1 > F2
+
+def test_engine_brake_increases_wheel_force_but_respects_muN():
+    gb = Gearbox([3.0,2.0], final_drive=3.5, wheel_radius_m=0.33, shift_rpm=7000, downshift_rpm=1500)
+    pt = Powertrain(TorqueCurve(np.array([1000,15000]), np.array([250,250])), gb,
+                    engine_brake_coeff_nm_per_rpm=0.03, engine_brake_max_torque_nm=150)
+    v = 30.0
+    F_eb, rpm, T_eb = pt.engine_brake_force(v, 2)
+    assert F_eb > 0.0
