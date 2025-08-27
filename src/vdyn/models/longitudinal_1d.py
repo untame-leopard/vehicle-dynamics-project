@@ -37,6 +37,8 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
     # --- Acceleration (0 -> v_target)
 
     gear = powertrain.box.launch_gear if powertrain else 0
+    shift_timer = 0.0
+
     while v < car.v_target:
         # Calculate forces acting on the vehicle
         CdA_eff = car.CdA + car.dCdA_per_ClA * car.ClA
@@ -44,14 +46,18 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
         F_rr   = car.Crr * car.m * g
         N = car.m * g + 0.5 * car.rho * car.ClA * v*v  # Normal force with downforce
         
+        
         if powertrain:
-            F_eng, rpm = powertrain.available_drive_force(v, gear)
-            if rpm > powertrain.box.shift_rpm and gear < len(powertrain.box.ratios):
-                gear += 1
+            if shift_timer > 0.0:
+                F_eng = 0.0
+                rpm = powertrain.box.engine_rpm(v, gear)
+                shift_timer = max(0.0, shift_timer - dt)
+            else:
                 F_eng, rpm = powertrain.available_drive_force(v, gear)
-            elif rpm < powertrain.box.downshift_rpm and gear > 1:
-                gear -= 1
-                F_eng, rpm = powertrain.available_drive_force(v, gear)
+                if rpm > powertrain.box.shift_rpm and gear < len(powertrain.box.ratios):
+                    gear += 1
+                    shift_timer = powertrain.box.shift_time_s
+                    rpm = powertrain.box.engine_rpm(v, gear)
         else:
             rpm = 0.0
             F_eng = (car.ita_drive * car.power) / max(v, 1e-6)
@@ -61,9 +67,6 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
 
         # Calculate acceleration and update state variables
         a = (F_drive - F_drag - F_rr) / car.m
-        if a < 0: 
-            a = 0.0
-            break
 
         v_prev = v
         v += a * dt

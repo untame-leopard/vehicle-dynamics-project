@@ -46,3 +46,16 @@ def test_engine_brake_increases_wheel_force_but_respects_muN():
     v = 30.0
     F_eb, rpm, T_eb = pt.engine_brake_force(v, 2)
     assert F_eb > 0.0
+
+from vdyn.models.longitudinal_1d import accel_brake_run, Vehicle, compute_kpis
+def test_shift_cut_slows_0_to_200():
+    gb_fast = Gearbox([3.0,2.0,1.5,1.2,1.0], final_drive=3.5, wheel_radius_m=0.33, shift_time_s=0.00)
+    gb_slow = Gearbox([3.0,2.0,1.5,1.2,1.0], final_drive=3.5, wheel_radius_m=0.33, shift_time_s=0.15)
+    pt_fast = Powertrain(_flat_curve(), gb_fast)
+    pt_slow = Powertrain(_flat_curve(), gb_slow)
+    car = Vehicle()
+    T_fast, V_fast, S_fast, *_ = accel_brake_run(car, powertrain=pt_fast)
+    T_slow, V_slow, S_slow, *_ = accel_brake_run(car, powertrain=pt_slow)
+    k_fast = compute_kpis(T_fast, V_fast, S_fast)
+    k_slow = compute_kpis(T_slow, V_slow, S_slow)
+    assert k_fast['t_0_200_s'] > k_slow['t_0_200_s']
