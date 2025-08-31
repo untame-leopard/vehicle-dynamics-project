@@ -117,3 +117,99 @@ def step_rk4(state: np.ndarray, u_cmd: Tuple[float, float], p: DynParams, dt: fl
     s_next[2] = (s_next[2] + np.pi) % (2 * np.pi) - np.pi
     
     return s_next
+
+def simulate_step_steer(T: float = 5.0, dt: float = 0.001,
+                        delta_step_deg: float = 3.0,
+                        p: DynParams = DynParams(),
+                        u0: float = 20.0) -> Dict[str, np.ndarray]:
+    """
+    Simulates a step-steer maneuver to test the vehicle's transient response.
+
+    The vehicle drives at a constant longitudinal speed (u0) and then a small
+    steering input (delta_step_deg) is abruptly applied. The function tracks
+    how the lateral velocity (v) and yaw rate (r) respond over time.
+
+    Args:
+        T (float): Total simulation time in seconds.
+        dt (float): Time step in seconds.
+        delta_step_deg (float): The magnitude of the steering step in degrees.
+        p (DynParams): Vehicle physical parameters.
+        u0 (float): The initial and constant longitudinal speed in m/s.
+
+    Returns:
+        Dict[str, np.ndarray]: A dictionary containing the simulation data over time.
+    """
+    n = int(T / dt)
+    # Initialize the state vector: [x, y, psi, u, v, r]
+    s = np.array([0.0, 0.0, 0.0, u0, 0.0, 0.0], float)
+    delta_step = np.deg2rad(delta_step_deg)
+    
+    # Dictionary to store the output data for plotting
+    out = {"t": [], "u": [], "v": [], "r": [], "psi": [], "delta": []}
+    
+    for i in range(n):
+        # Apply the step steer after 0.5 seconds
+        delta = delta_step if i * dt > 0.5 else 0.0
+        ax = 0.0  # Hold longitudinal acceleration at zero to maintain constant speed
+        
+        # Take a single simulation step using the RK4 integrator
+        s = step_rk4(s, (delta, ax), p, dt)
+        
+        # Append the current state to the output dictionary
+        out["t"].append(i * dt)
+        out["u"].append(s[3])
+        out["v"].append(s[4])
+        out["r"].append(s[5])
+        out["psi"].append(s[2])
+        out["delta"].append(delta)
+        
+    return {k: np.array(v) for k, v in out.items()}
+
+def simulate_skidpad(radius: float = 40.0, T: float = 15.0, dt: float = 0.001,
+                     p: DynParams = DynParams()) -> Dict[str, np.ndarray]:
+    """
+    Simulates a vehicle on a skidpad at a constant radius, increasing speed over time.
+
+    This test validates the model's steady-state cornering behavior and demonstrates
+    the relationship between speed, steering angle, and lateral acceleration.
+
+    Args:
+        radius (float): The target radius of the skidpad in meters.
+        T (float): Total simulation time in seconds.
+        dt (float): Time step in seconds.
+        p (DynParams): Vehicle physical parameters.
+
+    Returns:
+        Dict[str, np.ndarray]: A dictionary containing the simulation data.
+    """
+    n = int(T / dt)
+    # Initial state: [x, y, psi, u, v, r]. Start on the right side of the pad, heading up.
+    s = np.array([radius, 0.0, np.pi / 2, 5.0, 0.0, 0.0], float)
+    
+    # Calculate the feedforward steering angle for the given radius
+    L = p.Lf + p.Lr
+    delta_ff = np.arctan(L / radius)
+    
+    # Dictionary to store the output data
+    out = {"t": [], "u": [], "ay": [], "r": [], "delta": []}
+    
+    for i in range(n):
+        # Crude speed ramp to reach steady state. This can be improved later with a proper controller.
+        ax = 0.5
+        delta = delta_ff
+        
+        # Take a single simulation step
+        s = step_rk4(s, (delta, ax), p, dt)
+        
+        # Calculate lateral acceleration from the tire forces for easy plotting
+        Fy_f, Fy_r = linear_tire_forces(s[3], s[4], s[5], delta, p)
+        ay = (Fy_f + Fy_r) / p.m
+        
+        # Append data to the output dictionary
+        out["t"].append(i * dt)
+        out["u"].append(s[3])
+        out["ay"].append(ay)
+        out["r"].append(s[5])
+        out["delta"].append(delta)
+        
+    return {k: np.array(v) for k, v in out.items()}
