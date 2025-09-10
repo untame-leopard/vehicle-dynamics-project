@@ -99,3 +99,48 @@ def build_racing_line_from_aim(
         "kappa_1pm": kappa,
     })
     return out
+
+def build_centerline_from_lap(
+    lap_df: pd.DataFrame,
+    lat_col: str = "GPS Latitude",
+    lon_col: str = "GPS Longitude",
+    ds: float = 0.5,
+    smooth_window: int = 21,
+) -> pd.DataFrame:
+    """
+    Build a clean centerline from a fastest-lap slice.
+    Returns DataFrame with columns: s, x, y, psi, kappa.
+    """
+    # 1) get GPS (robust col pick)
+    if lat_col not in lap_df.columns or lon_col not in lap_df.columns:
+        # fallback: first columns matching /lat/i and /lon/i
+        lat_col = next(c for c in lap_df.columns if "lat" in c.lower())
+        lon_col = next(c for c in lap_df.columns if "lon" in c.lower())
+
+    lat = pd.to_numeric(lap_df[lat_col], errors="coerce").to_numpy()
+    lon = pd.to_numeric(lap_df[lon_col], errors="coerce").to_numpy()
+    ok = np.isfinite(lat) & np.isfinite(lon)
+    lat, lon = lat[ok], lon[ok]
+
+    # 2) project to local XY and lightly smooth
+    x, y = latlon_to_local_xy(lat, lon)
+    if smooth_window and smooth_window > 1:
+        x = moving_average(x, smooth_window)
+        y = moving_average(y, smooth_window)
+
+    # 3) cumulative arc-length and uniform resample by ds
+    s = cumulative_s(x, y)
+    s_u, (x_u, y_u) = resample_by_s(s, (x, y), ds)
+
+    # 4) heading & curvature on uniform grid (spacing = ds)
+    dx  = np.gradient(x_u, ds);  dy  = np.gradient(y_u, ds)
+    ddx = np.gradient(dx,  ds);  ddy = np.gradient(dy,  ds)
+    psi   = np.arctan2(dy, dx)
+    denom = np.clip((dx*dx + dy*dy)**1.5, 1e-9, None)
+    kappa = (dx*ddy - dy*ddx) / denom
+
+    # 5) small closure tweak (optional): align end to start to avoid tiny gaps
+    x_u = x_u - (x_u[-1] - x_u[0]) * (s_u / s_u[-1])
+    y_u = y_u - (y_u[-1] - y_u[0]) * (s_u / s_u[-1])
+
+    return pd.DataFrame({"s": s_u, "x": x_u, "y": y_u, "psi": psi, "kappa": kappa})
