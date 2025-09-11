@@ -1,105 +1,204 @@
 from __future__ import annotations
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 class CenterlineTrack:
     """
-    Track defined by arc-length s and curvature kappa(s).
-    Provides interpolation of kappa(s), heading psi(s) and XY coordinates.
+    Periodic centerline model x(s), y(s) with smooth cubic splines and Frenet utilities.
+
+    Parameters
+    ----------
+    s : array-like [m]
+        Monotone increasing arclength samples along the closed track (0 .. L).
+    x, y : array-like [m]
+        Global coordinates at each s.
+    psi : array-like [rad], optional
+        Heading. If None, computed from spline tangents.
+    kappa : array-like [1/m], optional
+        Curvature. If None, computed from spline derivatives.
     """
 
-    def __init__(self, s: np.ndarray, kappa: np.ndarray):
-        assert len(s) == len(kappa) and len(s) >= 2
-        # ensure strictly increasing s
+    def __init__(self, s, x, y, psi=None, kappa=None):
+        s = np.asarray(s, float)
+        x = np.asarray(x, float)
+        y = np.asarray(y, float)
+
+        # sort by s and ensure strictly increasing
         order = np.argsort(s)
-        self.s = np.asarray(s[order], dtype=float)
-        self.kappa = np.asarray(kappa[order], dtype=float)
-        self.L = float(self.s[-1])
-        # precompute heading by integrating kappa over s (cumulative trapezoid)
-        dk = 0.5 * (self.kappa[1:] + self.kappa[:-1]) * np.diff(self.s)
-        psi = np.concatenate([[0.0], np.cumsum(dk)])  # psi(0)=0
-        self.psi = psi
-        # precompute XY by integrating v=[cos psi, sin psi] w.r.t. s
-        x = [0.0]
-        y = [0.0]
-        for i in range(len(self.s) - 1):
-            ds = self.s[i+1] - self.s[i]
-            cx = 0.5 * (np.cos(psi[i]) + np.cos(psi[i+1]))
-            cy = 0.5 * (np.sin(psi[i]) + np.sin(psi[i+1]))
-            x.append(x[-1] + cx * ds)
-            y.append(y[-1] + cy * ds)
-        self.x = np.array(x)
-        self.y = np.array(y)
+        s, x, y = s[order], x[order], y[order]
+
+        # remove duplicated terminal sample if present (periodic splines require it)
+        if len(s) >= 2 and np.isclose(s[-1] - s[0], 0.0) and np.allclose([x[0], y[0]], [x[-1], y[-1]]):
+            s, x, y = s[:-1], x[:-1], y[:-1]
+
+        # force strictly increasing s
+        ds = np.diff(s)
+        if not np.all(ds > 0):
+            raise ValueError("s must be strictly increasing for spline construction.")
+
+        self.s = s
+        self.x = x
+        self.y = y
+        self.L = float(s[-1])
+
+        # periodic splines for x(s), y(s)
+        self._x_spline = CubicSpline(self.s, self.x, bc_type="periodic")
+        self._y_spline = CubicSpline(self.s, self.y, bc_type="periodic")
+
+        # heading from tangent if not provided
+        if psi is None:
+            dx = self._x_spline.derivative()(self.s)
+            dy = self._y_spline.derivative()(self.s)
+            self.psi = np.arctan2(dy, dx)
+        else:
+            psi = np.asarray(psi, float)
+            if psi.shape != self.s.shape:
+                raise ValueError("psi must have same shape as s.")
+            self.psi = psi[order]
+
+        # curvature from x(s), y(s) if not provided
+        if kappa is None:
+            dx  = self._x_spline.derivative()(self.s)
+            dy  = self._y_spline.derivative()(self.s)
+            ddx = self._x_spline.derivative(2)(self.s)
+            ddy = self._y_spline.derivative(2)(self.s)
+            denom = np.clip((dx*dx + dy*dy)**1.5, 1e-9, None)
+            self.kappa = (dx*ddy - dy*ddx) / denom
+        else:
+            kappa = np.asarray(kappa, float)
+            if kappa.shape != self.s.shape:
+                raise ValueError("kappa must have same shape as s.")
+            self.kappa = kappa[order]
+
+        self._kappa_spline = CubicSpline(self.s, self.kappa, bc_type="periodic")
 
     @classmethod
-    def from_csv(cls, path: str) -> "CenterlineTrack":
-        """
-    Creates a new CenterlineTrack instance by loading data from a CSV file.
+    def from_dataframe(cls, df):
+        """Construct from a DataFrame containing columns s,x,y[,psi,kappa]."""
+        return cls(
+            df["s"].to_numpy(),
+            df["x"].to_numpy(),
+            df["y"].to_numpy(),
+            df["psi"].to_numpy() if "psi" in df.columns else None,
+            df["kappa"].to_numpy() if "kappa" in df.columns else None,
+        )
 
-    Args:
-        path (str): The file path to the CSV containing 's' and 'kappa' data.
-                    The file should have two columns with s [m] and kappa [1/m],
-                    and can include commented lines starting with '#'.
-
-    Returns:
-        CenterlineTrack: A new instance of the class initialised with the loaded data.
-    """
-        rows = []
-        with open(path, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                a, b = line.split(",")
-                rows.append((float(a), float(b)))
-        s, k = (np.array([r[i] for r in rows], dtype=float) for i in (0, 1))
-        return cls(s, k)
-
-    def sample_kappa(self, s_query: np.ndarray) -> np.ndarray:
-        """
-    Samples the track's curvature (kappa) at a given arc-length.
-
-    This function uses linear interpolation on the pre-computed track data
-    to find the curvature at any point along the track's centerline.
-
-    Args:
-        s_query (np.ndarray): The arc-length(s) to query. This can be a single
-                              value or a NumPy array.
-
-    Returns:
-        np.ndarray: The curvature in inverse meters (1/m). For a closed-loop
-                    track, the result seamlessly wraps around to the start.
-    """
-        s = np.mod(s_query, self.L)
-        return np.interp(s, self.s, self.kappa)
+    # ---------- vectorised samplers (for plotting / grids) ----------
+    def sample_xy(self, s_query: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Vectorized sample of centerline positions at arclength(s) s_query [m]."""
+        s = np.asarray(s_query, float)
+        sm = np.mod(s, self.L)
+        x = self._x_spline(sm)
+        y = self._y_spline(sm)
+        return (float(x), float(y)) if np.ndim(x) == 0 else (x, y)
 
     def sample_psi(self, s_query: np.ndarray) -> np.ndarray:
+        """Vectorized heading ψ(s) [rad] at arclength(s) s_query."""
+        s = np.asarray(s_query, float)
+        sm = np.mod(s, self.L)
+        dxds = self._x_spline.derivative()(sm)
+        dyds = self._y_spline.derivative()(sm)
+        psi = np.arctan2(dyds, dxds)
+        return float(psi) if np.ndim(psi) == 0 else psi
+
+    def sample_kappa(self, s_query: np.ndarray) -> np.ndarray:
+        """Vectorized curvature κ(s) [1/m] at arclength(s) s_query."""
+        s = np.asarray(s_query, float)
+        sm = np.mod(s, self.L)
+        k = self._kappa_spline(sm)
+        return float(k) if np.ndim(k) == 0 else k
+
+    # ---------- single-point evaluators (used in projection/Newton) ----------
+    def x_at(self, s):   return self._x_spline(np.mod(s, self.L))
+    def y_at(self, s):   return self._y_spline(np.mod(s, self.L))
+    def dx(self, s):     return self._x_spline.derivative()(np.mod(s, self.L))
+    def dy(self, s):     return self._y_spline.derivative()(np.mod(s, self.L))
+    def ddx(self, s):    return self._x_spline.derivative(2)(np.mod(s, self.L))
+    def ddy(self, s):    return self._y_spline.derivative(2)(np.mod(s, self.L))
+    def psi_c(self, s):  return float(np.arctan2(self.dy(s), self.dx(s)))
+
+    # ---------- utilities ----------
+    def nearest_s(self, xq: float, yq: float, grid: int = 400) -> float:
         """
-        Samples the track's heading (psi) at a given arc-length.
-
-        Args:
-            s_query (np.ndarray): The arc-length(s) to query.
-                Can be a single value or a NumPy array.
-
-        Returns:
-            np.ndarray: The heading angle in radians. For a closed-loop track,
-                        the result will loop back to the start of the track.
+        Coarse nearest arclength by scanning a uniform grid (fast hint for Newton).
         """
-        s = np.mod(s_query, self.L) #Modulo for closed-loop
-        return np.interp(s, self.s, self.psi)
+        s_grid = np.linspace(0.0, self.L, grid, endpoint=False)
+        xg, yg = self.sample_xy(s_grid)
+        i = int(np.argmin((xg - xq)**2 + (yg - yq)**2))
+        return float(s_grid[i])
 
-    def sample_xy(self, s_query: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    # ---------- projection / Frenet ----------
+    def project_to_centerline(self, px: float, py: float, s_hint: float | None = None):
         """
-        Samples the track's global X and Y coordinates at a given arc-length.
+        Project (px,py) to the closest point on the centerline.
 
-        Args:
-            s_query (np.ndarray): The arc-length(s) to query.
-                                 Can be a single value or a NumPy array.
-
-        Returns:
-            Tuple[np.ndarray, np.ndarray]: A tuple containing the X and Y coordinates.
+        Returns
+        -------
+        s_star : float [m]
+            Arclength of the closest point.
+        x_c, y_c : float [m]
+            Coordinates of the closest point.
+        idx : int
+            Placeholder for KD-tree index (-1: none).
+        dist : float [m]
+            Euclidean distance to the centerline at s_star.
         """
-        s = np.mod(s_query, self.L)
-         # Use linear interpolation to find the X and Y coordinates at the queried s
-        x = np.interp(s, self.s, self.x) 
-        y = np.interp(s, self.s, self.y)
-        return x, y
+        S = self.L
+        s = self.nearest_s(px, py) if s_hint is None else float(np.mod(s_hint, S))
+
+        # Newton refinement on 0.5 ||r(s)||^2
+        for _ in range(10):
+            cx, cy = float(self.x_at(s)), float(self.y_at(s))
+            dx, dy = float(self.dx(s)), float(self.dy(s))
+            ddx, ddy = float(self.ddx(s)), float(self.ddy(s))
+            rx, ry = px - cx, py - cy
+            f  = -(rx*dx + ry*dy)
+            fp = (dx*dx + dy*dy) - (rx*ddx + ry*ddy)
+            step = f / (fp if abs(fp) > 1e-9 else 1e-9)
+            s = (s - step) % S
+            if abs(step) < 1e-6:
+                break
+
+        cx, cy = float(self.x_at(s)), float(self.y_at(s))
+        dist = float(np.hypot(px - cx, py - cy))
+        return float(s), cx, cy, -1, dist
+
+    def global_to_frenet(self, xq: float, yq: float, s_hint: float | None = None) -> tuple[float, float]:
+        """
+        Map a global point (xq,yq) to Frenet coordinates (s, n) relative to the centerline.
+        n is signed lateral offset using the local left-normal.
+
+        Returns
+        -------
+        s : float [m]
+        n : float [m]
+        """
+        s_star, xc, yc, _, _ = self.project_to_centerline(float(xq), float(yq), s_hint)
+
+        # tangent from spline derivatives (avoid angle wrapping)
+        tx, ty = float(self.dx(s_star)), float(self.dy(s_star))
+        norm = (tx*tx + ty*ty)**0.5
+        if norm < 1e-12:
+            tx, ty = 1.0, 0.0
+        else:
+            tx, ty = tx / norm, ty / norm
+
+        # left normal
+        nx, ny = -ty, tx
+        n = (xq - xc)*nx + (yq - yc)*ny
+        return float(s_star), float(n)
+
+    def frenet_to_global(self, s_q: float, n_q: float) -> tuple[float, float]:
+        """
+        Map Frenet (s, n) back to global (x, y) using the spline-derived normal.
+        """
+        s_q = float(np.mod(s_q, self.L))
+        tx, ty = float(self.dx(s_q)), float(self.dy(s_q))
+        norm = (tx*tx + ty*ty)**0.5
+        if norm < 1e-12:
+            tx, ty = 1.0, 0.0
+        else:
+            tx, ty = tx / norm, ty / norm
+        nx, ny = -ty, tx
+        xc, yc = float(self.x_at(s_q)), float(self.y_at(s_q))
+        return xc + n_q*nx, yc + n_q*ny
