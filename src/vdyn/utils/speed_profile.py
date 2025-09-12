@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Callable
 
 def curvature_speed_profile(trk, a_lat_max=8.0, v_cap=60.0, n=4000):
     """
@@ -15,3 +16,25 @@ def v_ref_lookup(s, S, v_ref_s, L):
     """ Interpolate periodic v_ref(s) at (possibly unwrapped) s. """
     sm = np.mod(s, L)
     return float(np.interp(sm, S, v_ref_s))
+
+def forward_backward_speed_profile(
+    s: np.ndarray,
+    v_cap_kappa: np.ndarray,
+    ds: float,
+    axmax_fn: Callable[[float], float],
+    axmin_fn: Callable[[float], float],
+) -> np.ndarray:
+    ''' Compute the limit lap speed v_opt(s) via a forward–backward pass.'''
+    v = np.array(v_cap_kappa, dtype=float)
+
+    # Forward (accel-limited)
+    for i in range(len(s) - 1):
+        a = float(axmax_fn(v[i]))
+        v[i + 1] = min(v[i + 1], np.sqrt(max(0.0, v[i] * v[i] + 2.0 * a * ds)))
+
+    # Backward (brake-limited)
+    for i in range(len(s) - 2, -1, -1):
+        a = abs(float(axmin_fn(v[i + 1])))
+        v[i] = min(v[i], np.sqrt(max(0.0, v[i + 1] * v[i + 1] + 2.0 * a * ds)))
+
+    return v
