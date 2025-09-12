@@ -2,6 +2,27 @@ from __future__ import annotations
 import numpy as np
 from scipy.interpolate import CubicSpline
 
+import numpy as np
+
+def enforce_periodic_endpoints(x, y, psi, kappa):
+    """
+    Make first and last samples identical so CubicSpline(..., bc_type='periodic') is valid.
+    Also wraps heading to avoid a 2pi jump.
+    """
+    x = np.asarray(x, float).copy()
+    y = np.asarray(y, float).copy()
+    psi = np.asarray(psi, float).copy()
+    kappa = np.asarray(kappa, float).copy()
+
+    # positions: exact match
+    x[-1], y[-1] = x[0], y[0]
+    # heading: wrap difference to [-pi, pi] then force match
+    psi[-1] = psi[0]
+    # curvature: match
+    kappa[-1] = kappa[0]
+    return x, y, psi, kappa
+
+
 class CenterlineTrack:
     """
     Periodic centerline model x(s), y(s) with smooth cubic splines and Frenet utilities.
