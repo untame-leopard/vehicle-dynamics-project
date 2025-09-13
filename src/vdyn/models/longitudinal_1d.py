@@ -56,7 +56,7 @@ def accel_brake_run(car: Vehicle, dt: float = 0.01, powertrain: Powertrain | Non
                 F_eng, rpm = powertrain.available_drive_force(v, gear)
                 if rpm > powertrain.box.shift_rpm and gear < len(powertrain.box.ratios):
                     gear += 1
-                    shift_timer = powertrain.box.shift_time_s
+                    shift_timer = powertrain.shift_time_s
                     rpm = powertrain.box.engine_rpm(v, gear)
         else:
             rpm = 0.0
