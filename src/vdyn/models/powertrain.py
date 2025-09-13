@@ -71,6 +71,7 @@ class Powertrain:
 
     engine_brake_coeff_nm_per_rpm: float = 0.03
     engine_brake_max_torque_nm: float = 400.0
+    shift_time_s: float = 0.00
 
     def available_drive_force(self, v_ms: float, gear: int) -> tuple[float, float]:
         """
@@ -99,3 +100,24 @@ def default_highrev_curve() -> TorqueCurve:
     rpm = np.array([1000, 4000, 8000, 11000, 13000, 14000], dtype=float)
     tq  = np.array([120,   220,   260,    250,    230,    210], dtype=float)
     return TorqueCurve(rpm, tq)
+
+def iame_x30_curve(scale: float = 1.0) -> TorqueCurve:
+    """
+    Approximate IAME X30 (EU) torque curve (no power valve).
+    Broad, smooth plateau: T_max ≈ 19.5 Nm near 10.5-11k rpm;
+    ~30 hp (~22.37 kW) around ~12k rpm -> T ≈ 17.8 Nm. Rev limit 16k.
+    data taken from: https://iameengines.com/product/x30-spec-eu/
+
+    Parameters
+    ----------
+    scale : float
+        Global torque scale for quick telemetry fitting (1.0 = spec-like).
+
+    Returns
+    -------
+    TorqueCurve
+        Discrete (rpm, Nm) curve; your TorqueCurve interpolates between points.
+    """
+    rpm = np.array([ 4000,  6000,  8000,  9000, 10000, 10500, 11000, 12000, 13000, 14000, 15000, 16000 ], float)
+    tq  = np.array([  8.0,  12.0,  17.0,  18.5,  19.2,  19.5,  19.0,  17.8,  16.5,  14.5,  12.5,  10.5 ], float)
+    return TorqueCurve(rpm, scale * tq)

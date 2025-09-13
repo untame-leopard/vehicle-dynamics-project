@@ -49,13 +49,27 @@ def test_engine_brake_increases_wheel_force_but_respects_muN():
 
 from vdyn.models.longitudinal_1d import accel_brake_run, Vehicle, compute_kpis
 def test_shift_cut_slows_0_to_200():
-    gb_fast = Gearbox([3.0,2.0,1.5,1.2,1.0], final_drive=3.5, wheel_radius_m=0.33, shift_time_s=0.00)
-    gb_slow = Gearbox([3.0,2.0,1.5,1.2,1.0], final_drive=3.5, wheel_radius_m=0.33, shift_time_s=0.15)
-    pt_fast = Powertrain(_flat_curve(), gb_fast)
-    pt_slow = Powertrain(_flat_curve(), gb_slow)
+    gb = Gearbox([3.0,2.0,1.5,1.2,1.0], final_drive=3.5, wheel_radius_m=0.33)
+    pt_fast = Powertrain(_flat_curve(), gb)
+    pt_slow = Powertrain(_flat_curve(), gb)
+    pt_fast.shift_time_s = 0.00
+    pt_slow.shift_time_s = 0.15
     car = Vehicle()
     T_fast, V_fast, S_fast, *_ = accel_brake_run(car, powertrain=pt_fast)
     T_slow, V_slow, S_slow, *_ = accel_brake_run(car, powertrain=pt_slow)
     k_fast = compute_kpis(T_fast, V_fast, S_fast)
     k_slow = compute_kpis(T_slow, V_slow, S_slow)
-    assert k_fast['t_0_200_s'] > k_slow['t_0_200_s']
+    assert k_fast['t_0_200_s'] < k_slow['t_0_200_s']
+
+def test_iame_x30_curve_basic_specs():
+    from vdyn.models.powertrain import iame_x30_curve
+    import numpy as np
+
+    c = iame_x30_curve(scale=1.0)
+    tq_10500 = c.tq(10500)
+    assert 18.5 <= tq_10500 <= 20.0  # near peak torque ~19.5 Nm
+
+    rpm = 12000.0
+    tq  = c.tq(rpm)
+    power_kw = (tq * 2*np.pi*rpm/60.0) / 1000.0
+    assert 21.0 <= power_kw <= 24.5  # ~30 hp around 12k
