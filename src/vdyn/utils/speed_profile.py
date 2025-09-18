@@ -38,3 +38,36 @@ def forward_backward_speed_profile(
         v[i] = min(v[i], np.sqrt(max(0.0, v[i + 1] * v[i + 1] + 2.0 * a * ds)))
 
     return v
+
+def soften_kappa_seam(kappa, W=12):
+    """Blend first/last W samples so curvature is continuous at the seam."""
+    k = kappa.copy()
+    if len(k) < 2*W:  # tiny guard
+        return k
+    a = np.linspace(0, 1, W)
+    k_start = k[:W].copy()
+    k_end   = k[-W:].copy()
+    # crossfade: last -> first
+    k[:W]  = (1 - a) * k_start + a * k_end
+    k[-W:] = (1 - a[::-1]) * k_end + a[::-1] * k_start
+    return k
+
+def limit_speed_profile_cyclic(S, v_kappa, ds, axmax, axmin, v_cap, iters=3):
+    i0   = int(np.argmin(v_kappa))                # move seam to tightest corner
+    vkap = np.roll(v_kappa, -i0)
+
+    v = np.minimum(vkap, v_cap).astype(float)
+    v[0] = max(1.0, v[0])                        
+
+    for _ in range(iters):
+        # forward (accel)
+        for i in range(len(v) - 1):
+            a = max(0.0, axmax(v[i]))
+            v[i+1] = min(v[i+1], np.sqrt(max(0.0, v[i]*v[i] + 2.0*a*ds)))
+        # backward (brake)  <-- NOTE the '+' sign
+        for i in range(len(v) - 2, -1, -1):
+            a = abs(axmin(v[i+1]))                # magnitude of decel
+            v[i] = min(v[i], np.sqrt(max(0.0, v[i+1]*v[i+1] + 2.0*a*ds)))
+        v = np.minimum(v, vkap)                 
+
+    return np.roll(v, i0)
