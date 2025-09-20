@@ -4,7 +4,7 @@ from dataclasses import dataclass
 class KartParams:
     m: float = 163.0           # kg (kart + driver)
     L: float = 1.07            # wheelbase [m]
-    mu_lat: float = 1.75       # baseline lateral friction (dry slicks ballpark)
+    mu_lat: float = 1.98      # baseline lateral friction (dry slicks ballpark)
     mu_long_drive: float = 1.6 # longitudinal accel friction
     mu_long_brake: float = 1.7 # longitudinal brake friction
     ClA: float = 0.0           # downforce area
