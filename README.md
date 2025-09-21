@@ -117,12 +117,12 @@ Tests cover:
 * Track ingestion (centerline CSV → arc length `s` and curvature `κ`) + Frenet frame (beta)
 * AiM telemetry loader with unit tests
 * First telemetry visuals (GPS speed vs distance, RPM trace)
+* Speed‑profile generator (forward/backward pass) with friction circle & simple tyre model
 
 ### In progress (next up)
 
 * Lap‑time estimation from telemetry (∫ ds / v) and equal/track‑defined sectors
 * Sim ↔ telemetry overlay aligned on distance, with error metrics (Δv(s), time loss)
-* Speed‑profile generator (forward/backward pass) with friction circle & simple tyre model
 
 ### Stretch goals
 
