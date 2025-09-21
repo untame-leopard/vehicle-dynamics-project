@@ -1,4 +1,4 @@
-from src.vdyn.telemetry import load_aim_csv
+from vdyn.telemetry.aim import load_aim_csv
 
 def test_load_basic():
     df = load_aim_csv("data/2.csv")  # your file

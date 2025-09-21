@@ -53,7 +53,7 @@ class CenterlineTrack:
             s, x, y = s[:-1], x[:-1], y[:-1]
 
         # force strictly increasing s
-        ds = np.diff(s)
+        ds = np.diff(s) #Prints array of the difference between s values. If one s value is smaller than the one before it does'nt work (negative ds)
         if not np.all(ds > 0):
             raise ValueError("s must be strictly increasing for spline construction.")
 
@@ -206,7 +206,7 @@ class CenterlineTrack:
 
         # left normal
         nx, ny = -ty, tx
-        n = (xq - xc)*nx + (yq - yc)*ny
+        n = (xq - xc)*nx + (yq - yc)*ny 
         return float(s_star), float(n)
 
     def frenet_to_global(self, s_q: float, n_q: float) -> tuple[float, float]:

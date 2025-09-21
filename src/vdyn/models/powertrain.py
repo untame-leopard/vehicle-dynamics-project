@@ -8,7 +8,7 @@ class TorqueCurve:
     """
     Represents an engine torque curve as a function of RPM.
     """
-    rpm: np.ndarray       
+    rpm: np.ndarray
     torque_nm: np.ndarray  
 
     def tq(self, rpm: float) -> float:
